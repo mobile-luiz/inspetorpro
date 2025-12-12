@@ -1,35 +1,36 @@
-// script.js - Versão FINAL com Firebase Authentication, Realtime Sync, Ordenação DESC e Exclusão Agendada
+// script.js - Versão COMPLETA com Autenticação e Ordenação Decrescente
 
-// ESTRUTURA FIREBASE 
+// ESTRUTURA FIREBASE (Use suas credenciais)
 // ---------------------------------------------
 const firebaseConfig = {
     apiKey: "AIzaSyA-V0sQPZbJfXMFlUjjtniSHSy37C7k4zs",
-
+    authDomain: "inspetorpro-6d9a7.firebaseapp.com",
     databaseURL: "https://inspetorpro-6d9a7-default-rtdb.firebaseio.com",
- 
+    projectId: "inspetorpro-6d9a7",
+    storageBucket: "inspetorpro-6d9a7.firebasestorage.app",
+    messagingSenderId: "568938045626",
+    appId: "1:568938045626:web:c3042e646d74ad0ec8a283",
+    measurementId: "G-LT8ZSZSWL0"
 };
 
 // Inicializa o Firebase
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
-const auth = firebase.auth(); // Inicializa o Firebase Authentication
+const auth = firebase.auth(); 
 // ---------------------------------------------
 
 
 // Estrutura de dados global local
 let filaDeEspera = [];
 let emInspecao = [];
-let historicoFinalizado = []; // Array para o Painel TV (Histórico)
-let realtimeSyncListener = null; // Armazena o listener para poder desativá-lo
+let historicoFinalizado = []; // Para o Painel TV
+let realtimeSyncListener = null; 
 
 
 // ---------------------------------------------
 // Funções de Controle de Tela e UI
 // ---------------------------------------------
 
-/**
- * Define qual seção principal está visível.
- */
 function setActivePage(pageId) {
     document.querySelectorAll('.content-container').forEach(container => {
         container.classList.add('hidden');
@@ -39,23 +40,19 @@ function setActivePage(pageId) {
         navItem.classList.remove('active');
     });
 
-    // Se estiver em uma página de AUTH, as outras estão ocultas
     if (pageId.includes('login') || pageId.includes('cadastro') || pageId.includes('recuperar')) {
         document.getElementById(pageId).classList.remove('hidden');
         return;
     }
 
-    // Se estiver em uma página da aplicação
     document.getElementById(pageId).classList.remove('hidden');
     
-    // Atualiza o estado ativo da navegação principal
     const pageKey = pageId.replace('page-', '');
     const navItem = document.querySelector(`[data-page="${pageKey}"]`);
     if (navItem) {
         navItem.classList.add('active');
     }
     
-    // Chama a renderização manual ao trocar para o Técnico/TV
     if (pageId === 'page-tecnico') {
         renderTechDashboard();
     } else if (pageId === 'page-paineltv') {
@@ -63,9 +60,6 @@ function setActivePage(pageId) {
     }
 }
 
-/**
- * Exibe ou oculta a navegação principal (usada no login/logout).
- */
 function toggleMainNav(show) {
     const nav = document.getElementById('main-nav');
     if (nav) {
@@ -77,9 +71,6 @@ function toggleMainNav(show) {
     }
 }
 
-/**
- * Exibe mensagens de status (sucesso/erro) nas telas de autenticação.
- */
 function displayAuthMessage(pageId, message, isSuccess = false) {
     const messageElement = document.getElementById(`${pageId.split('-')[1]}-message`);
     if (messageElement) {
@@ -88,8 +79,10 @@ function displayAuthMessage(pageId, message, isSuccess = false) {
         if (message) {
              if (isSuccess) {
                  messageElement.classList.add('success');
+                 messageElement.classList.remove('error');
              } else {
-                 messageElement.classList.remove('success'); 
+                 messageElement.classList.add('error');
+                 messageElement.classList.remove('success');
              }
         }
     }
@@ -106,16 +99,14 @@ function handleLogin(e) {
     const password = document.getElementById('login-password').value;
     displayAuthMessage('page-login', 'Entrando...');
 
-    // ALTERAÇÃO CRÍTICA: Define a persistência como 'NONE'
-    // Isso garante que o usuário SEMPRE volte para a tela de login ao atualizar a página.
-    auth.setPersistence(firebase.auth.Auth.Persistence.NONE)
+    // Usando NONE para não persistir a sessão após o refresh, reforçando a regra de sempre começar no login
+    auth.setPersistence(firebase.auth.Auth.Persistence.NONE) 
         .then(() => {
-            // Tenta logar APÓS configurar a persistência
             return auth.signInWithEmailAndPassword(email, password);
         })
         .then(() => {
-            // Sucesso - onAuthStateChanged cuidará do redirecionamento
             displayAuthMessage('page-login', '');
+            // A navegação para 'page-recepcao' é tratada automaticamente pelo onAuthStateChanged após o login bem-sucedido
         })
         .catch(error => {
             let message = "Erro ao fazer login. Credenciais inválidas.";
@@ -123,8 +114,6 @@ function handleLogin(e) {
                 message = "E-mail ou senha incorretos.";
             } else if (error.code === 'auth/invalid-email') {
                  message = "O formato do e-mail é inválido.";
-            } else if (error.code && error.code.startsWith('auth/')) {
-                 message = `Erro de autenticação: ${error.message}`;
             }
             displayAuthMessage('page-login', message);
         });
@@ -142,6 +131,16 @@ function handleCadastro(e) {
     }
 
     auth.createUserWithEmailAndPassword(email, password)
+        .then((userCredential) => {
+            const user = userCredential.user;
+            
+            // SALVAR DADOS DO USUÁRIO NO NÓ 'usuarios'
+            return database.ref('usuarios').child(user.uid).set({
+                email: user.email,
+                dataCadastro: new Date().toLocaleString('pt-BR'),
+                role: 'recepcao' 
+            });
+        })
         .then(() => {
             displayAuthMessage('page-cadastro', "Cadastro realizado com sucesso! Faça login.", true);
             document.getElementById('cadastro-form').reset();
@@ -156,6 +155,7 @@ function handleCadastro(e) {
             } else if (error.code === 'auth/invalid-email') {
                 message = "O formato do e-mail é inválido.";
             }
+            console.error("Erro no cadastro ou DB:", error); 
             displayAuthMessage('page-cadastro', message);
         });
 }
@@ -189,21 +189,16 @@ function handleLogout() {
         });
 }
 
-
 // ---------------------------------------------
 // Sincronização em Tempo Real (on('value'))
 // ---------------------------------------------
 
-/**
- * Configura o listener do Firebase para sincronização em tempo real (SÓ APÓS LOGIN).
- */
 function setupRealtimeSync() {
     if (realtimeSyncListener) {
         database.ref('/').off('value', realtimeSyncListener);
     }
     
-    // Define a função de callback
-    realtimeSyncListener = (snapshot) => { 
+    const listenerCallback = (snapshot) => { 
         const data = snapshot.val();
         
         filaDeEspera = [];
@@ -237,17 +232,16 @@ function setupRealtimeSync() {
             }
         }
         
-        // Ordenação DESCENDENTE (Mais Recente Primeiro)
+        // >>> LÓGICA DE ORDENAÇÃO DESCENDENTE (Mais Recente Primeiro) <<<
+        
         filaDeEspera.sort((a, b) => b.id.localeCompare(a.id)); 
         emInspecao.sort((a, b) => b.id.localeCompare(a.id));
         
-        // Histórico (DESCENDENTE baseada na dataFim)
         historicoFinalizado.sort((a, b) => {
             const parseDate = (dateStr) => {
                 if (!dateStr) return 0;
                 const [datePart, timePart] = dateStr.split(', ');
                 const [day, month, year] = datePart.split('/');
-                // Cria um objeto Date seguro
                 return new Date(`${year}/${month}/${day} ${timePart}`).getTime();
             };
 
@@ -255,9 +249,11 @@ function setupRealtimeSync() {
             const timeB = parseDate(b.dataFim);
             return timeB - timeA; 
         });
+        
+        // >>> FIM DA LÓGICA DE ORDENAÇÃO <<<
 
 
-        // Verifica qual página está ativa para renderizar automaticamente
+        // Renderiza a página ativa
         const activePage = document.querySelector('.content-container:not(.hidden)');
         if (!activePage) return; 
         
@@ -268,18 +264,14 @@ function setupRealtimeSync() {
         } else if (activePageId === 'page-paineltv') {
             renderPainelTV();
         }
-        
     };
     
-    // Inicia o novo listener
+    realtimeSyncListener = listenerCallback;
     database.ref('/').on('value', realtimeSyncListener, error => {
         console.error("Erro na sincronização em tempo real do Firebase:", error);
     });
 }
 
-/**
- * Remove o listener de sincronização (usado no logout).
- */
 function removeRealtimeSync() {
     if (realtimeSyncListener) {
         database.ref('/').off('value', realtimeSyncListener);
@@ -290,15 +282,15 @@ function removeRealtimeSync() {
     historicoFinalizado = [];
 }
 
-
 // ---------------------------------------------
-// Funções de Renderização (Mantidas)
+// Funções de Renderização
 // ---------------------------------------------
 
 function renderTechDashboard() {
     const esperaBody = document.querySelector('#fila-espera-card .card-body');
     const inspecaoBody = document.querySelector('#em-inspecao-card .card-body');
     
+    // Limpa o conteúdo antes de renderizar
     esperaBody.innerHTML = '';
     inspecaoBody.innerHTML = '';
 
@@ -309,6 +301,7 @@ function renderTechDashboard() {
     if (filaDeEspera.length === 0) {
         esperaBody.innerHTML = '<p class="empty-message">Nenhum veículo aguardando.</p>';
     } else {
+        // Renderiza na ordem decrescente do array
         filaDeEspera.forEach((veiculo) => {
             esperaBody.appendChild(createQueueItem(veiculo, 'iniciar'));
         });
@@ -318,6 +311,7 @@ function renderTechDashboard() {
     if (emInspecao.length === 0) {
         inspecaoBody.innerHTML = '<p class="empty-message">Nenhum veículo em inspeção.</p>';
     } else {
+        // Renderiza na ordem decrescente do array
         emInspecao.forEach((veiculo) => {
             inspecaoBody.appendChild(createQueueItem(veiculo, 'finalizar'));
         });
@@ -443,6 +437,7 @@ function renderPainelTV() {
     if (filaDeEspera.length === 0) {
         if(tvFilaBody) tvFilaBody.innerHTML = '<p class="empty-message-tv">Nenhum veículo aguardando.</p>';
     } else {
+        // A lista já está ordenada em setupRealtimeSync, apenas limita a exibição
         const tvFila = filaDeEspera.slice(0, 8); 
         tvFila.forEach((veiculo) => {
             if(tvFilaBody) tvFilaBody.appendChild(createTVItem(veiculo));
@@ -453,26 +448,24 @@ function renderPainelTV() {
     if (emInspecao.length === 0) {
         if(tvInspecaoBody) tvInspecaoBody.innerHTML = '<p class="empty-message-tv">Nenhum veículo em inspeção.</p>';
     } else {
+        // Renderiza na ordem decrescente do array
         emInspecao.forEach((veiculo) => {
             if(tvInspecaoBody) tvInspecaoBody.appendChild(createTVItem(veiculo));
         });
     }
 
-    // 3. Renderiza Histórico/Finalizados (LISTA COMPLETA - que será excluída em 5min)
+    // 3. Renderiza Histórico/Finalizados
     if (historicoFinalizado.length === 0) {
         if(tvFinalizadoBody) tvFinalizadoBody.innerHTML = '<p class="empty-message-tv">Nenhum serviço finalizado recentemente.</p>';
     } else {
+        // Renderiza na ordem decrescente do array
         historicoFinalizado.forEach((veiculo) => { 
             if(tvFinalizadoBody) tvFinalizadoBody.appendChild(createTVItem(veiculo, true)); 
         });
     }
 }
 
-
-// ---------------------------------------------
-// Funções utilitárias e de Movimentação
-// ---------------------------------------------
-
+// Funções utilitárias (Voz, Capitalização e Toast)
 function speak(text) {
     if ('speechSynthesis' in window) {
         const utterance = new SpeechSynthesisUtterance(text);
@@ -517,16 +510,13 @@ function moveVehicle(sourceList, targetList, id) {
     const sourceArray = sourceList === 'filaDeEspera' ? filaDeEspera : emInspecao;
     const veiculo = sourceArray.find(v => v.id === id);
 
-    if (!veiculo) {
-        console.error("Veículo não encontrado para o ID:", id);
-        return;
-    }
+    if (!veiculo) return;
     
     const update = { ...veiculo, status: targetList };
 
     const updates = {};
-    updates[`${sourceList}/${veiculo.id}`] = null; // Remove da origem
-    updates[`${targetList}/${veiculo.id}`] = update; // Salva no destino
+    updates[`${sourceList}/${veiculo.id}`] = null; 
+    updates[`${targetList}/${veiculo.id}`] = update; 
 
     database.ref().update(updates)
         .then(() => {
@@ -544,10 +534,7 @@ function moveVehicle(sourceList, targetList, id) {
 function removeVehicle(sourceList, id) {
     const veiculo = emInspecao.find(v => v.id === id);
 
-    if (!veiculo) {
-        console.error("Veículo não encontrado para o ID:", id);
-        return;
-    }
+    if (!veiculo) return;
 
     if (confirm("Confirmar a finalização da inspeção?")) {
         
@@ -568,19 +555,18 @@ function removeVehicle(sourceList, id) {
 
                 alert('Inspeção Finalizada! Veículo movido para o Histórico.');
                 
-                // Agendamento da Exclusão do Histórico após 5 minutos (300.000 ms)
+                // Agendamento da Exclusão do Histórico após 5 minutos
                 const FIVE_MINUTES = 5 * 60 * 1000;
                 
                 setTimeout(() => {
                     database.ref(`historico/${veiculo.id}`).remove()
                         .then(() => {
-                            console.log(`[Timer] Veículo ${veiculo.placa} (ID: ${veiculo.id}) excluído do Histórico após 5 minutos.`);
+                            console.log(`[Timer] Veículo ${veiculo.placa} excluído do Histórico após 5 minutos.`);
                         })
                         .catch(error => {
-                            console.error(`[Timer] Erro ao excluir veículo ${veiculo.placa} do Histórico:`, error);
+                            console.error(`[Timer] Erro ao excluir veículo ${veiculo.placa}:`, error);
                         });
                 }, FIVE_MINUTES);
-
             })
             .catch(error => {
                 console.error("Erro ao finalizar veículo no Firebase:", error);
@@ -589,25 +575,27 @@ function removeVehicle(sourceList, id) {
     }
 }
 
+
 // ----------------------------------------------------
-// Inicialização e Event Listeners
+// Inicialização
 // ----------------------------------------------------
 
 document.addEventListener('DOMContentLoaded', () => {
     
-    // 1. Inicializa o observador de estado de autenticação (CHAVE PARA O NOVO LOGIN)
+    // >>> AJUSTE: Força o logout no carregamento da página para garantir a tela de login. <<<
+    auth.signOut();
+    
+    // 1. Inicializa o observador de estado de autenticação
     auth.onAuthStateChanged(user => {
         if (user) {
-            // Usuário logado: Inicia a aplicação
+            // Logado (Executado apenas após login manual)
             setupRealtimeSync();
             toggleMainNav(true);
-            // Redireciona para a página principal (Recepção)
             setActivePage('page-recepcao'); 
         } else {
-            // Usuário deslogado: Volta para o login
+            // Deslogado (Executado no carregamento e após logout)
             removeRealtimeSync();
             toggleMainNav(false);
-            // Redireciona para a página de login
             setActivePage('page-login');
         }
     });
@@ -619,20 +607,18 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('nav-logout')?.addEventListener('click', handleLogout);
 
 
-    // 3. Configura os links internos de navegação da aplicação e os links de Auth
+    // 3. Configura os links de navegação
     document.querySelectorAll('.nav-item:not(#nav-logout), .switch-auth-page').forEach(item => {
         item.addEventListener('click', (e) => {
             e.preventDefault();
             const page = e.currentTarget.getAttribute('data-page');
             
-            // Limpa mensagens ao trocar de tela Auth
             if (e.currentTarget.classList.contains('switch-auth-page')) {
                 displayAuthMessage('page-login', '');
                 displayAuthMessage('page-cadastro', '');
                 displayAuthMessage('page-recuperar', '');
             }
 
-            // Exceção para o Logout, que é tratado separadamente
             if (e.currentTarget.id === 'nav-logout') return;
             
             setActivePage(`page-${page}`);
