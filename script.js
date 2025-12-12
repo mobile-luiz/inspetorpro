@@ -271,6 +271,31 @@ function setupRealtimeSync() {
         // ORDENAÇÃO DA LISTA DE USUÁRIOS por e-mail
         listaUsuarios.sort((a, b) => a.email.localeCompare(b.email)); 
 
+        
+        // =================================================================
+        // NOVO: LÓGICA DE VERIFICAÇÃO DE AUTORIZAÇÃO APÓS EXCLUSÃO DO DB
+        // Isso impede que um usuário logado no Auth, mas sem registro no DB, 
+        // consiga acessar o sistema.
+        // =================================================================
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+            const userInDB = listaUsuarios.find(u => u.uid === currentUser.uid);
+            
+            if (!userInDB) {
+                console.warn(`Acesso negado: Usuário ${currentUser.email} sem registro no DB. Forçando logout.`);
+                
+                // Alerta o usuário antes de deslogar
+                alert("Sua conta foi desativada ou removida pelo Administrador. Você será desconectado.");
+                
+                // Desloga o usuário e o redireciona para a página de login
+                auth.signOut();
+                return; // Impede a renderização das páginas internas
+            }
+        }
+        // =================================================================
+        // FIM DA NOVA LÓGICA
+        // =================================================================
+
 
         // Renderiza a página ativa
         const activePage = document.querySelector('.content-container:not(.hidden)');
@@ -378,7 +403,9 @@ function createUserItem(user) {
 /**
  * Remove o registro de um usuário do nó 'usuarios' do Realtime Database.
  * (NOTA: Esta função NÃO remove a conta do Firebase Authentication, apenas o registro do DB.)
- * @param {string} uid - O ID do usuário (chave do nó).
+ * * Com a nova lógica em setupRealtimeSync, a remoção deste registro agora 
+ * *forçará* o logout do usuário na próxima sincronização de dados.
+ * * @param {string} uid - O ID do usuário (chave do nó).
  * @param {string} email - O e-mail do usuário para confirmação.
  */
 function deleteUser(uid, email) {
@@ -387,10 +414,10 @@ function deleteUser(uid, email) {
         return;
     }
     
-    if (confirm(`Tem certeza que deseja remover o usuário ${email} do banco de dados? \n\n(AVISO: Isto não desativa a conta de login, apenas o registro no DB.)`)) {
+    if (confirm(`Tem certeza que deseja remover o usuário ${email} do banco de dados? \n\n(AVISO: Isto não desativa a conta de login, mas bloqueará o acesso na próxima sincronização.)`)) {
         database.ref(`usuarios/${uid}`).remove()
             .then(() => {
-                alert(`Usuário ${email} removido do banco de dados.`);
+                alert(`Usuário ${email} removido do banco de dados. O acesso dele será bloqueado.`);
             })
             .catch(error => {
                 console.error("Erro ao remover usuário:", error);
