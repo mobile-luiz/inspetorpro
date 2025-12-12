@@ -251,7 +251,7 @@ function setupRealtimeSync() {
             }
         }
         
-        // ORDENAÇÕES
+        // ORDENAÇÕES (Garante que o dado mais novo esteja no topo da Fila de Espera)
         filaDeEspera.sort((a, b) => b.id.localeCompare(a.id)); 
         emInspecao.sort((a, b) => b.id.localeCompare(a.id));
         
@@ -273,9 +273,7 @@ function setupRealtimeSync() {
 
         
         // =================================================================
-        // NOVO: LÓGICA DE VERIFICAÇÃO DE AUTORIZAÇÃO APÓS EXCLUSÃO DO DB
-        // Isso impede que um usuário logado no Auth, mas sem registro no DB, 
-        // consiga acessar o sistema.
+        // LÓGICA DE VERIFICAÇÃO DE AUTORIZAÇÃO APÓS EXCLUSÃO DO DB
         // =================================================================
         const currentUser = auth.currentUser;
         if (currentUser) {
@@ -342,7 +340,7 @@ function displayUserEmail(email) {
 
 
 // ---------------------------------------------
-// NOVO: Funções de Gerenciamento de Usuários
+// Funções de Gerenciamento de Usuários
 // ---------------------------------------------
 
 /**
@@ -402,10 +400,7 @@ function createUserItem(user) {
 
 /**
  * Remove o registro de um usuário do nó 'usuarios' do Realtime Database.
- * (NOTA: Esta função NÃO remove a conta do Firebase Authentication, apenas o registro do DB.)
- * * Com a nova lógica em setupRealtimeSync, a remoção deste registro agora 
- * *forçará* o logout do usuário na próxima sincronização de dados.
- * * @param {string} uid - O ID do usuário (chave do nó).
+ * @param {string} uid - O ID do usuário (chave do nó).
  * @param {string} email - O e-mail do usuário para confirmação.
  */
 function deleteUser(uid, email) {
@@ -576,12 +571,12 @@ function renderPainelTV() {
     if(tvInspecaoBody) tvInspecaoBody.innerHTML = '';
     if(tvFinalizadoBody) tvFinalizadoBody.innerHTML = ''; 
 
-    // 1. Renderiza Fila de Espera (Limite de 8 itens exibidos)
+    // 1. Renderiza Fila de Espera (AGORA EXIBINDO TODOS OS ITENS)
     if (filaDeEspera.length === 0) {
         if(tvFilaBody) tvFilaBody.innerHTML = '<p class="empty-message-tv">Nenhum veículo aguardando.</p>';
     } else {
-        const tvFila = filaDeEspera.slice(0, 8); 
-        tvFila.forEach((veiculo) => {
+        // ALTERAÇÃO: Removido .slice(0, 8) para exibir toda a lista em ordem do dado mais novo (já garantido por setupRealtimeSync)
+        filaDeEspera.forEach((veiculo) => {
             if(tvFilaBody) tvFilaBody.appendChild(createTVItem(veiculo));
         });
     }
