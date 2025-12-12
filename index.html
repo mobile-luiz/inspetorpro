@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>INSPETOR PRO</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+    <header class="header">
+        <div class="logo">INSPETOR<strong>PRO</strong></div>
+        <nav class="nav hidden" id="main-nav">
+            <a href="#" class="nav-item active" data-page="recepcao" id="nav-recepcao">
+                <i class="fas fa-user-check"></i> Recepção
+            </a>
+            <a href="#" class="nav-item" data-page="tecnico" id="nav-tecnico">
+                <i class="fas fa-tools"></i> Técnico
+            </a>
+            <a href="#" class="nav-item" data-page="paineltv" id="nav-paineltv">
+                <i class="fas fa-tv"></i> Painel TV
+            </a>
+            <a href="#" class="nav-item nav-logout" id="nav-logout">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </a>
+        </nav>
+    </header>
+
+    <main class="content-container" id="page-login">
+        <div class="auth-box">
+            <h2><i class="fas fa-sign-in-alt"></i> Acesso ao Sistema</h2>
+            <form id="login-form">
+                <div class="input-group">
+                    <label for="login-email">E-mail</label>
+                    <input type="email" id="login-email" required placeholder="seu.email@empresa.com">
+                </div>
+                <div class="input-group">
+                    <label for="login-password">Senha</label>
+                    <input type="password" id="login-password" required placeholder="Mínimo 6 caracteres">
+                </div>
+                <div id="login-message" class="auth-message"></div>
+                <button type="submit" class="btn-primary">Entrar</button>
+            </form>
+            <div class="auth-links">
+                <a href="#" data-page="cadastro" class="switch-auth-page">Não tem conta? Cadastre-se</a>
+                <a href="#" data-page="recuperar" class="switch-auth-page">Esqueceu a senha?</a>
+            </div>
+        </div>
+    </main>
+
+    <main class="content-container hidden" id="page-cadastro">
+        <div class="auth-box">
+            <h2><i class="fas fa-user-plus"></i> Cadastro de Novo Usuário</h2>
+            <form id="cadastro-form">
+                <div class="input-group">
+                    <label for="cadastro-email">E-mail</label>
+                    <input type="email" id="cadastro-email" required placeholder="seu.email@empresa.com">
+                </div>
+                <div class="input-group">
+                    <label for="cadastro-password">Senha</label>
+                    <input type="password" id="cadastro-password" required placeholder="Mínimo 6 caracteres">
+                </div>
+                <div id="cadastro-message" class="auth-message"></div>
+                <button type="submit" class="btn-primary">Cadastrar</button>
+            </form>
+            <div class="auth-links">
+                <a href="#" data-page="login" class="switch-auth-page">Já tem conta? Faça Login</a>
+            </div>
+        </div>
+    </main>
+
+    <main class="content-container hidden" id="page-recuperar">
+        <div class="auth-box">
+            <h2><i class="fas fa-unlock-alt"></i> Recuperar Senha</h2>
+            <form id="recuperar-form">
+                <div class="input-group">
+                    <label for="recuperar-email">E-mail</label>
+                    <input type="email" id="recuperar-email" required placeholder="E-mail de cadastro">
+                </div>
+                <div id="recuperar-message" class="auth-message"></div>
+                <button type="submit" class="btn-primary">Enviar Link de Redefinição</button>
+            </form>
+            <div class="auth-links">
+                <a href="#" data-page="login" class="switch-auth-page">Voltar ao Login</a>
+            </div>
+        </div>
+    </main>
+    
+    <main class="content-container hidden" id="page-recepcao">
+        <div class="form-container">
+            <h2><i class="fas fa-clipboard-list"></i> Registrar Novo Veículo</h2>
+            <form id="registro-veiculo-form">
+                <div class="input-group">
+                    <label for="nome-condutor">Nome do Condutor</label>
+                    <input type="text" id="nome-condutor" placeholder="Ex: João da Silva" required>
+                </div>
+                <div class="input-group">
+                    <label for="placa-veiculo">Placa do Veículo</label>
+                    <input type="text" id="placa-veiculo" placeholder="Ex: ABC1234" required maxlength="7" style="text-transform: uppercase;">
+                </div>
+                <div class="input-group">
+                    <label for="tipo-servico">Tipo de Serviço</label>
+                    <select id="tipo-servico" required>
+                        <option value="CSV">CSV - Certificado de Segurança Veicular</option>
+                        <option value="CIV">CIV - Certificado de Inspeção Veicular</option>
+                        <option value="CIPP">CIPP - Inspeção de Equipamento</option>
+                        <option value="LIT">LIT - Laudo de Inspeção Técnica</option>
+                        <option value="LAUDOS">LAUDOS - Laudos Diversos</option>
+                        <option value="DESCONTAMINAÇÃO">DESCONTAMINAÇÃO</option>
+                        <option value="OUTRO">OUTRO</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-primary">
+                    <i class="fas fa-plus-circle"></i> Registrar Veículo
+                </button>
+            </form>
+        </div>
+        
+        <div id="toast-notification" class="toast hidden"></div>
+        
+    </main>
+
+    <main class="content-container hidden" id="page-tecnico">
+        <div class="tech-dashboard">
+            
+            <div class="tech-card" id="fila-espera-card">
+                <div class="card-header">
+                    <i class="fas fa-clock"></i> Fila de Espera (<span id="count-espera">0</span>)
+                </div>
+                <div class="card-body">
+                    <p class="empty-message">Nenhum veículo aguardando.</p>
+                </div>
+            </div>
+
+            <div class="tech-card" id="em-inspecao-card">
+                <div class="card-header">
+                    <i class="fas fa-map-marker-alt"></i> Em Inspeção (<span id="count-inspecao">0</span>)
+                </div>
+                <div class="card-body">
+                    <p class="empty-message">Nenhum veículo em inspeção.</p>
+                </div>
+            </div>
+
+        </div>
+    </main>
+    
+    <main class="content-container hidden" id="page-paineltv">
+         <div class="tv-dashboard">
+             <div class="tv-card fila-card">
+                 <div class="card-header-tv fila-header">
+                     <i class="fas fa-clock"></i> AGUARDANDO INSPEÇÃO
+                 </div>
+                 <div class="card-body-tv" id="tv-fila-body">
+                     <p class="empty-message-tv">Nenhum veículo aguardando.</p>
+                 </div>
+             </div>
+
+             <div class="tv-card inspecao-card">
+                 <div class="card-header-tv inspecao-header">
+                     <i class="fas fa-map-marker-alt"></i> EM INSPEÇÃO
+                 </div>
+                 <div class="card-body-tv" id="tv-inspecao-body">
+                     <p class="empty-message-tv">Nenhum veículo em inspeção.</p>
+                 </div>
+             </div>
+
+             <div class="tv-card finalizado-card">
+                 <div class="card-header-tv finalizado-header">
+                     <i class="fas fa-check-circle"></i> FINALIZADO
+                 </div>
+                 <div class="card-body-tv" id="tv-finalizado-body">
+                     <p class="empty-message-tv">Nenhum serviço finalizado recentemente.</p>
+                 </div>
+             </div>
+         </div>
+    </main>
+    
+    <script src="script.js"></script>
+</body>
+</html>

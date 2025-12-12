@@ -1,0 +1,544 @@
+/* style.css - Versão FINAL com Autenticação e Estilos para Auth */
+
+/* Reset Básico */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    /* Cores do Tema */
+    --cor-fundo-principal: #0d1a2f; 
+    --cor-fundo-card: #1c2b4d;     
+    --cor-azul-claro: #00bcd4;     
+    --cor-texto-claro: #e0f7fa;    
+    --cor-placeholder: #90a4ae;    
+    --cor-borda-input: #3e5170;    
+    --cor-header-form: #153e70;    
+    
+    /* Sombras e Bordas */
+    --borda-radius-card: 12px;
+    --borda-radius-item: 8px;
+    --sombra-card: 0 6px 20px rgba(0, 0, 0, 0.5);
+
+    /* Cores de Ação e Tags */
+    --cor-acao-chamar: #00bcd4;     
+    --cor-acao-finalizar: #ff5252; 
+    --cor-fundo-inspecao: #330000; 
+
+    /* Cores de Tags */
+    --cor-tag-csv: #2ecc71;        /* Verde */
+    --cor-tag-civ: #3498db;        /* Azul */
+    --cor-tag-cipp: #f39c12;       /* Amarelo */
+    --cor-tag-lit: #9b59b6;        /* Roxo */
+    --cor-tag-laudos: #e67e22;     /* Laranja */
+    --cor-tag-descontaminacao: #1abc9c; /* Ciano */
+    --cor-tag-outro: #95a5a6;      /* Cinza */
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--cor-fundo-principal);
+    color: var(--cor-texto-claro);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* --- Layout Principal --- */
+
+.header {
+    background-color: var(--cor-fundo-card);
+    padding: 15px 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: var(--sombra-card);
+    z-index: 100;
+}
+
+.logo {
+    font-size: 1.8em;
+    font-weight: 300;
+}
+
+.logo strong {
+    color: var(--cor-azul-claro);
+    font-weight: 700;
+}
+
+.nav {
+    display: flex;
+    gap: 25px;
+}
+
+.nav-item {
+    color: var(--cor-texto-claro);
+    text-decoration: none;
+    font-size: 1em;
+    padding: 8px 15px;
+    border-radius: 6px;
+    transition: background-color 0.3s, color 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.nav-item:hover, .nav-item.active {
+    background-color: rgba(0, 188, 212, 0.2); /* cor-azul-claro com transparência */
+    color: var(--cor-azul-claro);
+}
+
+.nav-item.active {
+    border-bottom: 2px solid var(--cor-azul-claro);
+}
+
+.nav-logout {
+    background-color: var(--cor-acao-finalizar);
+    color: white;
+}
+
+.nav-logout:hover {
+    background-color: #d32f2f;
+    color: white;
+    border-bottom: none;
+}
+
+/* Seções de Conteúdo */
+.content-container {
+    flex-grow: 1;
+    padding: 30px;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* --- Estilos Comuns de Formulário (Recepção) --- */
+
+.form-container, .auth-box {
+    background-color: var(--cor-fundo-card);
+    padding: 30px;
+    border-radius: var(--borda-radius-card);
+    box-shadow: var(--sombra-card);
+    max-width: 500px; /* Limita a largura para melhor visualização */
+    margin: 30px auto; /* Centraliza */
+}
+
+.form-container h2, .auth-box h2 {
+    color: var(--cor-azul-claro);
+    margin-bottom: 25px;
+    border-bottom: 1px solid var(--cor-borda-input);
+    padding-bottom: 15px;
+    font-size: 1.5em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.input-group {
+    margin-bottom: 20px;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: var(--cor-texto-claro);
+}
+
+.input-group input, .input-group select {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--cor-borda-input);
+    border-radius: 6px;
+    background-color: var(--cor-fundo-principal);
+    color: var(--cor-texto-claro);
+    font-size: 1em;
+    transition: border-color 0.3s;
+}
+
+.input-group input:focus, .input-group select:focus {
+    border-color: var(--cor-azul-claro);
+    outline: none;
+    box-shadow: 0 0 5px rgba(0, 188, 212, 0.5);
+}
+
+.input-group input::placeholder {
+    color: var(--cor-placeholder);
+}
+
+.btn-primary {
+    width: 100%;
+    background-color: var(--cor-azul-claro);
+    color: var(--cor-fundo-principal);
+    border: none;
+    padding: 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 1.1em;
+    transition: background-color 0.2s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.btn-primary:hover {
+    background-color: #00acc1;
+    transform: translateY(-1px);
+}
+
+
+/* --- Estilos de Autenticação (Auth) --- */
+
+.auth-box {
+    text-align: center;
+    padding: 40px;
+}
+
+.auth-box h2 {
+    justify-content: center;
+}
+
+.auth-message {
+    margin-top: -10px;
+    margin-bottom: 20px;
+    padding: 10px;
+    border-radius: 4px;
+    color: #ff5252; /* Cor de erro padrão */
+    /* MODIFICADO: Retira o fundo e a borda vermelha */
+    background-color: transparent;
+    font-size: 0.9em;
+    border: none;
+}
+
+.auth-message.success {
+    color: var(--cor-tag-csv); /* Verde */
+    /* MODIFICADO: Retira o fundo e a borda verde */
+    background-color: transparent;
+    border: none;
+}
+
+.auth-links {
+    margin-top: 20px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9em;
+}
+
+.auth-links a {
+    color: var(--cor-azul-claro);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.auth-links a:hover {
+    color: #00acc1;
+    text-decoration: underline;
+}
+
+/* --- Dashboard Técnico (Inalterado) --- */
+
+.tech-dashboard {
+    display: flex;
+    justify-content: space-around;
+    gap: 30px;
+    flex-wrap: wrap;
+}
+
+.tech-card {
+    background-color: var(--cor-fundo-card);
+    border-radius: var(--borda-radius-card);
+    box-shadow: var(--sombra-card);
+    padding: 0; 
+    min-width: 450px;
+    flex: 1;
+}
+
+.card-header {
+    background-color: var(--cor-header-form);
+    padding: 15px 20px;
+    border-top-left-radius: var(--borda-radius-card);
+    border-top-right-radius: var(--borda-radius-card);
+    font-size: 1.2em;
+    font-weight: 700;
+    color: var(--cor-azul-claro);
+}
+
+.card-body {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    min-height: 200px;
+}
+
+.empty-message {
+    color: var(--cor-placeholder);
+    text-align: center;
+    padding: 20px 0;
+    font-style: italic;
+}
+
+/* Item da Fila */
+.queue-item {
+    background-color: var(--cor-fundo-principal);
+    padding: 12px 15px;
+    border-radius: var(--borda-radius-item);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-left: 5px solid var(--cor-azul-claro);
+    transition: background-color 0.2s;
+}
+
+.queue-item:hover {
+    background-color: #12213d; /* Um pouco mais escuro que o fundo principal */
+}
+
+.item-info {
+    flex-grow: 1;
+}
+
+.main-info strong {
+    font-size: 1.1em;
+    margin-right: 10px;
+}
+
+.item-condutor {
+    font-size: 0.9em;
+    color: var(--cor-placeholder);
+}
+
+.item-datetime {
+    font-size: 0.8em;
+    color: var(--cor-placeholder);
+    margin-top: 5px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.item-details {
+    margin-top: 5px;
+}
+
+/* Tags de Serviço */
+.tag-servico {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75em;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--cor-fundo-principal);
+}
+.tag-csv { background-color: var(--cor-tag-csv); }
+.tag-civ { background-color: var(--cor-tag-civ); }
+.tag-cipp { background-color: var(--cor-tag-cipp); }
+.tag-lit { background-color: var(--cor-tag-lit); }
+.tag-laudos { background-color: var(--cor-tag-laudos); }
+.tag-descontaminacao { background-color: var(--cor-tag-descontaminacao); }
+.tag-outro { background-color: var(--cor-tag-outro); }
+
+.tag-prioridade {
+    display: inline-block;
+    margin-left: 10px;
+    color: var(--cor-acao-finalizar);
+    font-weight: 700;
+    font-size: 0.75em;
+}
+
+.item-actions button {
+    border: none;
+    padding: 10px 14px; 
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.95em; 
+}
+
+/* Botão Chamar (Fila de Espera) */
+#fila-espera-card .item-actions button {
+    background-color: var(--cor-acao-chamar);
+    color: var(--cor-fundo-card); 
+}
+#fila-espera-card .item-actions button:hover {
+    background-color: #00acc1;
+}
+
+/* Botão Finalizar (Em Inspeção) */
+#em-inspecao-card .item-actions button {
+    background-color: var(--cor-acao-finalizar);
+    color: white; 
+}
+#em-inspecao-card .item-actions button:hover {
+    background-color: #d32f2f;
+}
+
+/* --- Toast Notification (Inalterado) --- */
+
+.toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: var(--cor-tag-csv);
+    color: var(--cor-fundo-principal);
+    padding: 15px 25px;
+    border-radius: var(--borda-radius-item);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    z-index: 1000;
+    opacity: 0;
+    transform: translateX(100%);
+    transition: opacity 0.5s, transform 0.5s;
+    font-weight: 600;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+/* --- Painel TV (Inalterado) --- */
+
+.tv-dashboard {
+    display: flex;
+    gap: 20px;
+    height: calc(100vh - 80px - 60px); /* Altura da tela menos header e padding */
+}
+
+.tv-card {
+    background-color: var(--cor-fundo-card);
+    border-radius: var(--borda-radius-card);
+    box-shadow: var(--sombra-card);
+    flex-basis: 33.33%; /* Três colunas iguais */
+    display: flex;
+    flex-direction: column;
+}
+
+.card-header-tv {
+    padding: 15px 20px;
+    font-size: 1.5em;
+    font-weight: 700;
+    color: white;
+    text-align: center;
+    border-top-left-radius: var(--borda-radius-card);
+    border-top-right-radius: var(--borda-radius-card);
+}
+
+.fila-header {
+    background-color: #00838f;
+}
+
+.inspecao-header {
+    background-color: #ff3d00;
+}
+
+.finalizado-header {
+    background-color: #2e7d32;
+}
+
+.card-body-tv {
+    padding: 15px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto; /* Permite rolagem se houver muitos itens */
+}
+
+.empty-message-tv {
+    color: var(--cor-placeholder);
+    text-align: center;
+    padding: 40px 0;
+    font-style: italic;
+    font-size: 1.1em;
+}
+
+.tv-item {
+    background-color: var(--cor-fundo-principal);
+    padding: 15px 20px;
+    border-radius: var(--borda-radius-item);
+    border-left: 6px solid var(--cor-azul-claro);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 1.1em;
+}
+
+.finalizado-card .tv-item {
+    background-color: #123321; /* Fundo mais sutil para itens finalizados */
+    border-left-color: var(--cor-tag-csv); /* Borda verde */
+    color: #c8e6c9; /* Texto claro */
+}
+
+.tv-info strong {
+    font-size: 1.2em;
+    color: var(--cor-azul-claro);
+}
+
+.finalizado-card .tv-info strong {
+    color: var(--cor-tag-csv);
+}
+
+.tv-service-tag {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 0.7em;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--cor-fundo-principal);
+    margin-left: 10px;
+    align-self: flex-start;
+}
+
+.tv-time-detail {
+    font-size: 0.9em;
+    color: var(--cor-placeholder);
+    align-self: flex-end;
+}
+
+.tv-time-finished {
+    color: #81c784; /* Verde mais claro para o horário finalizado */
+}
+
+
+/* --- Responsividade (Media Queries) --- */
+
+@media (max-width: 1200px) {
+    .tech-card { min-width: 400px; }
+
+    /* Força Painel TV para layout de coluna em telas menores/médias */
+    .tv-dashboard {
+        flex-direction: column;
+        height: auto;
+    }
+    .tv-card {
+        min-width: 100%; 
+        flex-basis: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .header { flex-direction: column; padding: 15px 10px; gap: 10px; }
+    .nav { gap: 10px; justify-content: center; flex-wrap: wrap; }
+    .nav-item { padding: 5px 10px; }
+    .content-container { padding: 15px; }
+    .tech-dashboard { gap: 15px; }
+    .tech-card { min-width: 100%; }
+    .queue-item { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .item-actions { width: 100%; }
+    .item-actions button { width: 100%; }
+    .form-container, .auth-box { margin: 15px auto; padding: 20px; }
+    .auth-links { flex-direction: column; gap: 10px; }
+    .tv-item { flex-direction: column; align-items: flex-start; gap: 5px; }
+    .tv-service-tag { margin-left: 0; }
+}
