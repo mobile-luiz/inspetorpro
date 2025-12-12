@@ -283,6 +283,22 @@ function removeRealtimeSync() {
 }
 
 // ---------------------------------------------
+// NOVO: Função para exibir o e-mail do usuário
+// ---------------------------------------------
+function displayUserEmail(email) {
+    const emailElement = document.getElementById('nav-user-email');
+    if (emailElement) {
+        if (email) {
+            emailElement.innerHTML = `<i class="fas fa-envelope"></i> ${email}`;
+        } else {
+            emailElement.innerHTML = `<i class="fas fa-envelope"></i> E-mail`;
+        }
+    }
+}
+// ---------------------------------------------
+
+
+// ---------------------------------------------
 // Funções de Renderização
 // ---------------------------------------------
 
@@ -592,11 +608,18 @@ document.addEventListener('DOMContentLoaded', () => {
             setupRealtimeSync();
             toggleMainNav(true);
             setActivePage('page-recepcao'); 
+            
+            // >>> NOVO: Exibe o e-mail do usuário logado <<<
+            displayUserEmail(user.email);
+            
         } else {
             // Deslogado (Executado no carregamento e após logout)
             removeRealtimeSync();
             toggleMainNav(false);
             setActivePage('page-login');
+            
+            // >>> NOVO: Limpa o campo de e-mail ao deslogar <<<
+            displayUserEmail(null); 
         }
     });
 
