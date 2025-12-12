@@ -1,4 +1,4 @@
-// script.js - Versão COMPLETA com Autenticação e Ordenação Decrescente
+// script.js - Versão COMPLETA com Autenticação, Painel TV e Gerenciamento de Usuários
 
 // ESTRUTURA FIREBASE (Use suas credenciais)
 // ---------------------------------------------
@@ -24,6 +24,7 @@ const auth = firebase.auth();
 let filaDeEspera = [];
 let emInspecao = [];
 let historicoFinalizado = []; // Para o Painel TV
+let listaUsuarios = []; // NOVO: Para a lista de usuários
 let realtimeSyncListener = null; 
 
 
@@ -57,6 +58,9 @@ function setActivePage(pageId) {
         renderTechDashboard();
     } else if (pageId === 'page-paineltv') {
         renderPainelTV();
+    } else if (pageId === 'page-usuarios') { 
+        // Chama a função de renderização de usuários que usará a lista atualizada pelo setupRealtimeSync
+        renderUsers();
     }
 }
 
@@ -88,7 +92,6 @@ function displayAuthMessage(pageId, message, isSuccess = false) {
     }
 }
 
-
 // ---------------------------------------------
 // Funções de Autenticação (Auth)
 // ---------------------------------------------
@@ -99,14 +102,12 @@ function handleLogin(e) {
     const password = document.getElementById('login-password').value;
     displayAuthMessage('page-login', 'Entrando...');
 
-    // Usando NONE para não persistir a sessão após o refresh, reforçando a regra de sempre começar no login
     auth.setPersistence(firebase.auth.Auth.Persistence.NONE) 
         .then(() => {
             return auth.signInWithEmailAndPassword(email, password);
         })
         .then(() => {
             displayAuthMessage('page-login', '');
-            // A navegação para 'page-recepcao' é tratada automaticamente pelo onAuthStateChanged após o login bem-sucedido
         })
         .catch(error => {
             let message = "Erro ao fazer login. Credenciais inválidas.";
@@ -134,12 +135,20 @@ function handleCadastro(e) {
         .then((userCredential) => {
             const user = userCredential.user;
             
-            // SALVAR DADOS DO USUÁRIO NO NÓ 'usuarios'
-            return database.ref('usuarios').child(user.uid).set({
-                email: user.email,
-                dataCadastro: new Date().toLocaleString('pt-BR'),
-                role: 'recepcao' 
-            });
+            // LÓGICA DE ROLE: O primeiro usuário registrado será 'admin'.
+            // Verifica se já existe algum registro no nó 'usuarios'
+            return database.ref('usuarios').once('value')
+                .then(snapshot => {
+                    const existingUsers = snapshot.val();
+                    const isFirstUser = !existingUsers || Object.keys(existingUsers).length === 0;
+                    const userRole = isFirstUser ? 'admin' : 'recepcao';
+                    
+                    return database.ref('usuarios').child(user.uid).set({
+                        email: user.email,
+                        dataCadastro: new Date().toLocaleString('pt-BR'),
+                        role: userRole 
+                    });
+                });
         })
         .then(() => {
             displayAuthMessage('page-cadastro', "Cadastro realizado com sucesso! Faça login.", true);
@@ -204,6 +213,7 @@ function setupRealtimeSync() {
         filaDeEspera = [];
         emInspecao = [];
         historicoFinalizado = [];
+        listaUsuarios = []; // Limpa a lista de usuários
         
         if (data) {
             
@@ -230,10 +240,18 @@ function setupRealtimeSync() {
                     historicoFinalizado.push(veiculo);
                 });
             }
+            
+            // LÓGICA DE CAPTURA DE USUÁRIOS
+            if (data.usuarios) { 
+                Object.keys(data.usuarios).forEach(uid => {
+                    const user = data.usuarios[uid];
+                    user.uid = uid; 
+                    listaUsuarios.push(user);
+                });
+            }
         }
         
-        // >>> LÓGICA DE ORDENAÇÃO DESCENDENTE (Mais Recente Primeiro) <<<
-        
+        // ORDENAÇÕES
         filaDeEspera.sort((a, b) => b.id.localeCompare(a.id)); 
         emInspecao.sort((a, b) => b.id.localeCompare(a.id));
         
@@ -250,7 +268,8 @@ function setupRealtimeSync() {
             return timeB - timeA; 
         });
         
-        // >>> FIM DA LÓGICA DE ORDENAÇÃO <<<
+        // ORDENAÇÃO DA LISTA DE USUÁRIOS por e-mail
+        listaUsuarios.sort((a, b) => a.email.localeCompare(b.email)); 
 
 
         // Renderiza a página ativa
@@ -263,6 +282,8 @@ function setupRealtimeSync() {
             renderTechDashboard();
         } else if (activePageId === 'page-paineltv') {
             renderPainelTV();
+        } else if (activePageId === 'page-usuarios') { 
+            renderUsers(); // Atualiza a lista de usuários
         }
     };
     
@@ -280,33 +301,114 @@ function removeRealtimeSync() {
     filaDeEspera = [];
     emInspecao = [];
     historicoFinalizado = [];
+    listaUsuarios = []; 
 }
 
 // ---------------------------------------------
-// NOVO: Função para exibir o e-mail do usuário
+// Função para exibir o e-mail do usuário
 // ---------------------------------------------
 function displayUserEmail(email) {
-    const emailElement = document.getElementById('nav-user-email');
-    if (emailElement) {
-        if (email) {
-            emailElement.innerHTML = `<i class="fas fa-envelope"></i> ${email}`;
-        } else {
-            emailElement.innerHTML = `<i class="fas fa-envelope"></i> E-mail`;
-        }
+    const emailSpan = document.getElementById('nav-user-email');
+    if (emailSpan) {
+        emailSpan.innerHTML = `<i class="fas fa-envelope"></i> ${email}`;
     }
 }
 // ---------------------------------------------
 
 
 // ---------------------------------------------
-// Funções de Renderização
+// NOVO: Funções de Gerenciamento de Usuários
+// ---------------------------------------------
+
+/**
+ * Renderiza a lista de usuários no DOM.
+ */
+function renderUsers() {
+    const usersListBody = document.getElementById('users-list-body');
+    if (!usersListBody) return;
+
+    usersListBody.innerHTML = ''; 
+
+    if (listaUsuarios.length === 0) {
+        usersListBody.innerHTML = '<p class="empty-message">Nenhum usuário encontrado.</p>';
+    } else {
+        listaUsuarios.forEach((user) => {
+            usersListBody.appendChild(createUserItem(user));
+        });
+    }
+}
+
+/**
+ * Cria o elemento HTML (div) para um único usuário.
+ * @param {object} user - Objeto do usuário do Firebase.
+ * @returns {HTMLElement} O elemento div do item da lista.
+ */
+function createUserItem(user) {
+    const div = document.createElement('div');
+    div.classList.add('user-item');
+    div.setAttribute('data-uid', user.uid);
+    
+    // Define a classe de estilo da role
+    let roleClass = 'role-recepcao';
+    if (user.role === 'tecnico') {
+        roleClass = 'role-tecnico';
+    } else if (user.role === 'admin') {
+         roleClass = 'role-admin';
+    }
+    
+    // Regra de Exclusão: Não pode excluir o usuário atualmente logado (uid diferente)
+    const canDelete = auth.currentUser && user.uid !== auth.currentUser.uid;
+    
+    // O botão de exclusão só é habilitado se não for o usuário logado.
+    const deleteButton = canDelete ? 
+        `<button onclick="deleteUser('${user.uid}', '${user.email}')"><i class="fas fa-trash-alt"></i> Excluir</button>` :
+        '<button disabled><i class="fas fa-lock"></i> Usuário Atual</button>';
+    
+    div.innerHTML = `
+        <span class="user-email">${user.email}</span>
+        <span class="user-role-tag ${roleClass}">${user.role ? user.role.toUpperCase() : 'N/A'}</span>
+        <div class="user-list-actions">
+            ${deleteButton}
+        </div>
+    `;
+
+    return div;
+}
+
+/**
+ * Remove o registro de um usuário do nó 'usuarios' do Realtime Database.
+ * (NOTA: Esta função NÃO remove a conta do Firebase Authentication, apenas o registro do DB.)
+ * @param {string} uid - O ID do usuário (chave do nó).
+ * @param {string} email - O e-mail do usuário para confirmação.
+ */
+function deleteUser(uid, email) {
+    if (!auth.currentUser) {
+        alert("Você precisa estar logado para realizar esta ação.");
+        return;
+    }
+    
+    if (confirm(`Tem certeza que deseja remover o usuário ${email} do banco de dados? \n\n(AVISO: Isto não desativa a conta de login, apenas o registro no DB.)`)) {
+        database.ref(`usuarios/${uid}`).remove()
+            .then(() => {
+                alert(`Usuário ${email} removido do banco de dados.`);
+            })
+            .catch(error => {
+                console.error("Erro ao remover usuário:", error);
+                alert("Erro ao remover usuário do banco de dados.");
+            });
+    }
+}
+// ---------------------------------------------
+
+
+// ---------------------------------------------
+// Funções de Renderização (Recepção e Painel TV)
 // ---------------------------------------------
 
 function renderTechDashboard() {
     const esperaBody = document.querySelector('#fila-espera-card .card-body');
     const inspecaoBody = document.querySelector('#em-inspecao-card .card-body');
     
-    // Limpa o conteúdo antes de renderizar
     esperaBody.innerHTML = '';
     inspecaoBody.innerHTML = '';
 
@@ -317,7 +419,6 @@ function renderTechDashboard() {
     if (filaDeEspera.length === 0) {
         esperaBody.innerHTML = '<p class="empty-message">Nenhum veículo aguardando.</p>';
     } else {
-        // Renderiza na ordem decrescente do array
         filaDeEspera.forEach((veiculo) => {
             esperaBody.appendChild(createQueueItem(veiculo, 'iniciar'));
         });
@@ -327,7 +428,6 @@ function renderTechDashboard() {
     if (emInspecao.length === 0) {
         inspecaoBody.innerHTML = '<p class="empty-message">Nenhum veículo em inspeção.</p>';
     } else {
-        // Renderiza na ordem decrescente do array
         emInspecao.forEach((veiculo) => {
             inspecaoBody.appendChild(createQueueItem(veiculo, 'finalizar'));
         });
@@ -453,7 +553,6 @@ function renderPainelTV() {
     if (filaDeEspera.length === 0) {
         if(tvFilaBody) tvFilaBody.innerHTML = '<p class="empty-message-tv">Nenhum veículo aguardando.</p>';
     } else {
-        // A lista já está ordenada em setupRealtimeSync, apenas limita a exibição
         const tvFila = filaDeEspera.slice(0, 8); 
         tvFila.forEach((veiculo) => {
             if(tvFilaBody) tvFilaBody.appendChild(createTVItem(veiculo));
@@ -464,7 +563,6 @@ function renderPainelTV() {
     if (emInspecao.length === 0) {
         if(tvInspecaoBody) tvInspecaoBody.innerHTML = '<p class="empty-message-tv">Nenhum veículo em inspeção.</p>';
     } else {
-        // Renderiza na ordem decrescente do array
         emInspecao.forEach((veiculo) => {
             if(tvInspecaoBody) tvInspecaoBody.appendChild(createTVItem(veiculo));
         });
@@ -474,12 +572,12 @@ function renderPainelTV() {
     if (historicoFinalizado.length === 0) {
         if(tvFinalizadoBody) tvFinalizadoBody.innerHTML = '<p class="empty-message-tv">Nenhum serviço finalizado recentemente.</p>';
     } else {
-        // Renderiza na ordem decrescente do array
         historicoFinalizado.forEach((veiculo) => { 
             if(tvFinalizadoBody) tvFinalizadoBody.appendChild(createTVItem(veiculo, true)); 
         });
     }
 }
+
 
 // Funções utilitárias (Voz, Capitalização e Toast)
 function speak(text) {
@@ -522,7 +620,6 @@ function showToast(placa, condutor) {
 }
 
 function moveVehicle(sourceList, targetList, id) {
-    
     const sourceArray = sourceList === 'filaDeEspera' ? filaDeEspera : emInspecao;
     const veiculo = sourceArray.find(v => v.id === id);
 
@@ -598,28 +695,23 @@ function removeVehicle(sourceList, id) {
 
 document.addEventListener('DOMContentLoaded', () => {
     
-    // >>> AJUSTE: Força o logout no carregamento da página para garantir a tela de login. <<<
+    // Força o logout no carregamento da página para garantir a tela de login.
     auth.signOut();
     
     // 1. Inicializa o observador de estado de autenticação
     auth.onAuthStateChanged(user => {
         if (user) {
-            // Logado (Executado apenas após login manual)
+            // Logado
             setupRealtimeSync();
             toggleMainNav(true);
+            displayUserEmail(user.email); 
             setActivePage('page-recepcao'); 
-            
-            // >>> NOVO: Exibe o e-mail do usuário logado <<<
-            displayUserEmail(user.email);
-            
         } else {
-            // Deslogado (Executado no carregamento e após logout)
+            // Deslogado
             removeRealtimeSync();
             toggleMainNav(false);
+            displayUserEmail('E-mail'); 
             setActivePage('page-login');
-            
-            // >>> NOVO: Limpa o campo de e-mail ao deslogar <<<
-            displayUserEmail(null); 
         }
     });
 
