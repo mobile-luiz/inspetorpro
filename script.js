@@ -1,6 +1,6 @@
-// script.js - Versão COMPLETA com Autenticação, Painel TV e Gerenciamento de Usuários
+// script.js - Versão COMPLETA E CORRIGIDA (com Limpeza de Histórico Automática e correção de bug no setActivePage)
 
-// ESTRUTURA FIREBASE (Use suas credenciais)
+// ESTRUTURA FIREBASE (Credenciais fornecidas pelo usuário)
 // ---------------------------------------------
 const firebaseConfig = {
     apiKey: "AIzaSyA-V0sQPZbJfXMFlUjjtniSHSy37C7k4zs",
@@ -20,16 +20,16 @@ const auth = firebase.auth();
 // ---------------------------------------------
 
 
-// Estrutura de dados global local
+// Estrutura de dados global local (sincronizada com o Firebase)
 let filaDeEspera = [];
 let emInspecao = [];
 let historicoFinalizado = []; // Para o Painel TV
-let listaUsuarios = []; // NOVO: Para a lista de usuários
+let listaUsuarios = []; 
 let realtimeSyncListener = null; 
 
 
 // ---------------------------------------------
-// Funções de Controle de Tela e UI
+// Funções de Controle de Tela e UI (COM CORREÇÃO DE BUG)
 // ---------------------------------------------
 
 function setActivePage(pageId) {
@@ -41,25 +41,41 @@ function setActivePage(pageId) {
         navItem.classList.remove('active');
     });
 
+    // Trata páginas de autenticação
     if (pageId.includes('login') || pageId.includes('cadastro') || pageId.includes('recuperar')) {
-        document.getElementById(pageId).classList.remove('hidden');
+        const authPage = document.getElementById(pageId);
+        if (authPage) { // <--- CORREÇÃO DE BUG: Garante que o elemento existe
+            authPage.classList.remove('hidden');
+        } else {
+             console.error(`Erro: Elemento de autenticação ${pageId} não encontrado no DOM.`);
+        }
         return;
     }
-
-    document.getElementById(pageId).classList.remove('hidden');
     
+    // A partir daqui, são as páginas principais da aplicação
+    const mainPage = document.getElementById(pageId);
+    
+    if (!mainPage) {
+        console.error(`Erro: Elemento da página ${pageId} não encontrado no DOM. Verifique seu HTML.`);
+        return; // Interrompe se a página não existir (PREVINE ERRO NA LINHA 50/54)
+    }
+
+    // Mostra a página
+    mainPage.classList.remove('hidden'); // LINHA QUE CAUSAVA O ERRO, AGORA PROTEGIDA
+    
+    // Ativa o item de navegação correspondente
     const pageKey = pageId.replace('page-', '');
     const navItem = document.querySelector(`[data-page="${pageKey}"]`);
     if (navItem) {
         navItem.classList.add('active');
     }
     
+    // Chamadas de renderização específicas
     if (pageId === 'page-tecnico') {
         renderTechDashboard();
     } else if (pageId === 'page-paineltv') {
         renderPainelTV();
     } else if (pageId === 'page-usuarios') { 
-        // Chama a função de renderização de usuários que usará a lista atualizada pelo setupRealtimeSync
         renderUsers();
     }
 }
@@ -92,6 +108,14 @@ function displayAuthMessage(pageId, message, isSuccess = false) {
     }
 }
 
+function displayUserEmail(email) {
+    const emailSpan = document.getElementById('nav-user-email');
+    if (emailSpan) {
+        emailSpan.innerHTML = `<i class="fas fa-envelope"></i> ${email}`;
+    }
+}
+
+
 // ---------------------------------------------
 // Funções de Autenticação (Auth)
 // ---------------------------------------------
@@ -102,12 +126,12 @@ function handleLogin(e) {
     const password = document.getElementById('login-password').value;
     displayAuthMessage('page-login', 'Entrando...');
 
-    auth.setPersistence(firebase.auth.Auth.Persistence.NONE) 
+    auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL) 
         .then(() => {
-            return auth.signInWithEmailAndPassword(email, password);
+             return auth.signInWithEmailAndPassword(email, password);
         })
         .then(() => {
-            displayAuthMessage('page-login', '');
+            displayAuthMessage('page-login', ''); 
         })
         .catch(error => {
             let message = "Erro ao fazer login. Credenciais inválidas.";
@@ -136,7 +160,6 @@ function handleCadastro(e) {
             const user = userCredential.user;
             
             // LÓGICA DE ROLE: O primeiro usuário registrado será 'admin'.
-            // Verifica se já existe algum registro no nó 'usuarios'
             return database.ref('usuarios').once('value')
                 .then(snapshot => {
                     const existingUsers = snapshot.val();
@@ -210,13 +233,15 @@ function setupRealtimeSync() {
     const listenerCallback = (snapshot) => { 
         const data = snapshot.val();
         
+        // 1. Limpa e re-popula as listas globais
         filaDeEspera = [];
         emInspecao = [];
         historicoFinalizado = [];
-        listaUsuarios = []; // Limpa a lista de usuários
+        listaUsuarios = [];
         
         if (data) {
             
+            // Processa filaDeEspera
             if (data.filaDeEspera) {
                 Object.keys(data.filaDeEspera).forEach(key => {
                     const veiculo = data.filaDeEspera[key];
@@ -225,6 +250,7 @@ function setupRealtimeSync() {
                 });
             }
             
+            // Processa emInspecao
             if (data.emInspecao) {
                 Object.keys(data.emInspecao).forEach(key => {
                     const veiculo = data.emInspecao[key];
@@ -233,6 +259,7 @@ function setupRealtimeSync() {
                 });
             }
 
+            // Processa historico
             if (data.historico) {
                 Object.keys(data.historico).forEach(key => {
                     const veiculo = data.historico[key];
@@ -241,7 +268,7 @@ function setupRealtimeSync() {
                 });
             }
             
-            // LÓGICA DE CAPTURA DE USUÁRIOS
+            // Processa listaUsuarios
             if (data.usuarios) { 
                 Object.keys(data.usuarios).forEach(uid => {
                     const user = data.usuarios[uid];
@@ -251,30 +278,24 @@ function setupRealtimeSync() {
             }
         }
         
-        // ORDENAÇÕES (Garante que o dado mais novo esteja no topo da Fila de Espera)
+        // 2. ORDENAÇÕES (Garante que o dado mais novo esteja no topo)
         filaDeEspera.sort((a, b) => b.id.localeCompare(a.id)); 
         emInspecao.sort((a, b) => b.id.localeCompare(a.id));
         
         historicoFinalizado.sort((a, b) => {
-            const parseDate = (dateStr) => {
-                if (!dateStr) return 0;
-                const [datePart, timePart] = dateStr.split(', ');
-                const [day, month, year] = datePart.split('/');
-                return new Date(`${year}/${month}/${day} ${timePart}`).getTime();
-            };
-
-            const timeA = parseDate(a.dataFim);
-            const timeB = parseDate(b.dataFim);
-            return timeB - timeA; 
+             const timeA = a.dataFim ? new Date(a.dataFim.replace(/(\d{2})\/(\d{2})\/(\d{4}),\s*(\d{2}:\d{2}:\d{2})/, '$3/$2/$1 $4')).getTime() : 0;
+             const timeB = b.dataFim ? new Date(b.dataFim.replace(/(\d{2})\/(\d{2})\/(\d{4}),\s*(\d{2}:\d{2}:\d{2})/, '$3/$2/$1 $4')).getTime() : 0;
+             return timeB - timeA; 
         });
         
-        // ORDENAÇÃO DA LISTA DE USUÁRIOS por e-mail
         listaUsuarios.sort((a, b) => a.email.localeCompare(b.email)); 
 
         
-        // =================================================================
-        // LÓGICA DE VERIFICAÇÃO DE AUTORIZAÇÃO APÓS EXCLUSÃO DO DB
-        // =================================================================
+        // 3. LÓGICA DE LIMPEZA DE HISTÓRICO EXPIRADO - CHAMADA ESSENCIAL
+        runHistoryCleanup();
+
+
+        // 4. LÓGICA DE VERIFICAÇÃO DE AUTORIZAÇÃO APÓS EXCLUSÃO DO DB
         const currentUser = auth.currentUser;
         if (currentUser) {
             const userInDB = listaUsuarios.find(u => u.uid === currentUser.uid);
@@ -282,20 +303,14 @@ function setupRealtimeSync() {
             if (!userInDB) {
                 console.warn(`Acesso negado: Usuário ${currentUser.email} sem registro no DB. Forçando logout.`);
                 
-                // Alerta o usuário antes de deslogar
                 alert("Sua conta foi desativada ou removida pelo Administrador. Você será desconectado.");
                 
-                // Desloga o usuário e o redireciona para a página de login
                 auth.signOut();
-                return; // Impede a renderização das páginas internas
+                return; 
             }
         }
-        // =================================================================
-        // FIM DA NOVA LÓGICA
-        // =================================================================
-
-
-        // Renderiza a página ativa
+        
+        // 5. Renderiza a página ativa
         const activePage = document.querySelector('.content-container:not(.hidden)');
         if (!activePage) return; 
         
@@ -306,7 +321,7 @@ function setupRealtimeSync() {
         } else if (activePageId === 'page-paineltv') {
             renderPainelTV();
         } else if (activePageId === 'page-usuarios') { 
-            renderUsers(); // Atualiza a lista de usuários
+            renderUsers(); 
         }
     };
     
@@ -327,25 +342,51 @@ function removeRealtimeSync() {
     listaUsuarios = []; 
 }
 
+
 // ---------------------------------------------
-// Função para exibir o e-mail do usuário
+// Funções de Limpeza e Manutenção (EXECUÇÃO DA EXCLUSÃO AUTOMÁTICA)
 // ---------------------------------------------
-function displayUserEmail(email) {
-    const emailSpan = document.getElementById('nav-user-email');
-    if (emailSpan) {
-        emailSpan.innerHTML = `<i class="fas fa-envelope"></i> ${email}`;
+
+/**
+ * Verifica o array global historicoFinalizado e remove do Firebase 
+ * todos os veículos onde o timestamp 'dataExpiracao' já passou.
+ * É chamada em cada sincronização (login ou atualização de dados).
+ */
+function runHistoryCleanup() {
+    const now = Date.now();
+    const updates = {};
+    let itemsRemovedCount = 0;
+
+    historicoFinalizado.forEach(veiculo => {
+        // Verifica se o campo dataExpiracao existe e se o tempo atual 
+        // é maior ou igual ao tempo de expiração agendado (5 minutos).
+        if (veiculo.dataExpiracao && veiculo.dataExpiracao <= now) {
+            // Marca o item para exclusão (seta para null)
+            updates[`historico/${veiculo.id}`] = null;
+            itemsRemovedCount++;
+        }
+    });
+
+    if (itemsRemovedCount > 0) {
+        console.log(`[CLEANUP] Iniciando limpeza: ${itemsRemovedCount} itens expirados no histórico.`);
+        // Executa a exclusão de todos os itens em um único batch
+        database.ref().update(updates)
+            .then(() => {
+                console.log("[CLEANUP] Limpeza do histórico concluída com sucesso.");
+            })
+            .catch(error => {
+                console.error("[CLEANUP] Erro durante a limpeza do histórico:", error);
+            });
+    } else {
+         console.log("[CLEANUP] Nenhum item expirado encontrado no histórico.");
     }
 }
-// ---------------------------------------------
 
 
 // ---------------------------------------------
 // Funções de Gerenciamento de Usuários
 // ---------------------------------------------
 
-/**
- * Renderiza a lista de usuários no DOM.
- */
 function renderUsers() {
     const usersListBody = document.getElementById('users-list-body');
     if (!usersListBody) return;
@@ -361,17 +402,11 @@ function renderUsers() {
     }
 }
 
-/**
- * Cria o elemento HTML (div) para um único usuário.
- * @param {object} user - Objeto do usuário do Firebase.
- * @returns {HTMLElement} O elemento div do item da lista.
- */
 function createUserItem(user) {
     const div = document.createElement('div');
     div.classList.add('user-item');
     div.setAttribute('data-uid', user.uid);
     
-    // Define a classe de estilo da role
     let roleClass = 'role-recepcao';
     if (user.role === 'tecnico') {
         roleClass = 'role-tecnico';
@@ -379,10 +414,8 @@ function createUserItem(user) {
          roleClass = 'role-admin';
     }
     
-    // Regra de Exclusão: Não pode excluir o usuário atualmente logado (uid diferente)
     const canDelete = auth.currentUser && user.uid !== auth.currentUser.uid;
     
-    // O botão de exclusão só é habilitado se não for o usuário logado.
     const deleteButton = canDelete ? 
         `<button onclick="deleteUser('${user.uid}', '${user.email}')"><i class="fas fa-trash-alt"></i> Excluir</button>` :
         '<button disabled><i class="fas fa-lock"></i> Usuário Atual</button>';
@@ -398,11 +431,6 @@ function createUserItem(user) {
     return div;
 }
 
-/**
- * Remove o registro de um usuário do nó 'usuarios' do Realtime Database.
- * @param {string} uid - O ID do usuário (chave do nó).
- * @param {string} email - O e-mail do usuário para confirmação.
- */
 function deleteUser(uid, email) {
     if (!auth.currentUser) {
         alert("Você precisa estar logado para realizar esta ação.");
@@ -420,7 +448,6 @@ function deleteUser(uid, email) {
             });
     }
 }
-// ---------------------------------------------
 
 
 // ---------------------------------------------
@@ -431,27 +458,27 @@ function renderTechDashboard() {
     const esperaBody = document.querySelector('#fila-espera-card .card-body');
     const inspecaoBody = document.querySelector('#em-inspecao-card .card-body');
     
-    esperaBody.innerHTML = '';
-    inspecaoBody.innerHTML = '';
+    if (esperaBody) esperaBody.innerHTML = '';
+    if (inspecaoBody) inspecaoBody.innerHTML = '';
 
     document.getElementById('count-espera').textContent = filaDeEspera.length;
     document.getElementById('count-inspecao').textContent = emInspecao.length;
 
     // Fila de Espera
     if (filaDeEspera.length === 0) {
-        esperaBody.innerHTML = '<p class="empty-message">Nenhum veículo aguardando.</p>';
+        if (esperaBody) esperaBody.innerHTML = '<p class="empty-message">Nenhum veículo aguardando.</p>';
     } else {
         filaDeEspera.forEach((veiculo) => {
-            esperaBody.appendChild(createQueueItem(veiculo, 'iniciar'));
+            if (esperaBody) esperaBody.appendChild(createQueueItem(veiculo, 'iniciar'));
         });
     }
 
     // Em Inspeção
     if (emInspecao.length === 0) {
-        inspecaoBody.innerHTML = '<p class="empty-message">Nenhum veículo em inspeção.</p>';
+        if (inspecaoBody) inspecaoBody.innerHTML = '<p class="empty-message">Nenhum veículo em inspeção.</p>';
     } else {
         emInspecao.forEach((veiculo) => {
-            inspecaoBody.appendChild(createQueueItem(veiculo, 'finalizar'));
+            if (inspecaoBody) inspecaoBody.appendChild(createQueueItem(veiculo, 'finalizar'));
         });
     }
 }
@@ -537,6 +564,7 @@ function createTVItem(veiculo, isFinalizado = false) {
     if (isFinalizado && veiculo.dataFim) {
         const partes = veiculo.dataFim.split(', ');
         if(partes.length > 1) {
+            // Exemplo: Finalizado às 18:40
             horaDetalhe = `Finalizado às ${partes[1].substring(0, 5)}`; 
         }
     } else if (!isFinalizado && veiculo.dataEntrada) {
@@ -571,11 +599,10 @@ function renderPainelTV() {
     if(tvInspecaoBody) tvInspecaoBody.innerHTML = '';
     if(tvFinalizadoBody) tvFinalizadoBody.innerHTML = ''; 
 
-    // 1. Renderiza Fila de Espera (AGORA EXIBINDO TODOS OS ITENS)
+    // 1. Renderiza Fila de Espera
     if (filaDeEspera.length === 0) {
         if(tvFilaBody) tvFilaBody.innerHTML = '<p class="empty-message-tv">Nenhum veículo aguardando.</p>';
     } else {
-        // ALTERAÇÃO: Removido .slice(0, 8) para exibir toda a lista em ordem do dado mais novo (já garantido por setupRealtimeSync)
         filaDeEspera.forEach((veiculo) => {
             if(tvFilaBody) tvFilaBody.appendChild(createTVItem(veiculo));
         });
@@ -590,11 +617,12 @@ function renderPainelTV() {
         });
     }
 
-    // 3. Renderiza Histórico/Finalizados
+    // 3. Renderiza Histórico/Finalizados (limita a exibição dos 5 mais recentes)
     if (historicoFinalizado.length === 0) {
         if(tvFinalizadoBody) tvFinalizadoBody.innerHTML = '<p class="empty-message-tv">Nenhum serviço finalizado recentemente.</p>';
     } else {
-        historicoFinalizado.forEach((veiculo) => { 
+        // Usa slice(0, 5) após a ordenação (no setupRealtimeSync) para pegar os 5 mais novos
+        historicoFinalizado.slice(0, 5).forEach((veiculo) => { 
             if(tvFinalizadoBody) tvFinalizadoBody.appendChild(createTVItem(veiculo, true)); 
         });
     }
@@ -647,7 +675,11 @@ function moveVehicle(sourceList, targetList, id) {
 
     if (!veiculo) return;
     
-    const update = { ...veiculo, status: targetList };
+    const update = { 
+        ...veiculo, 
+        status: targetList === 'emInspecao' ? 'em-inspecao' : veiculo.status, 
+        dataInicio: targetList === 'emInspecao' ? new Date().toLocaleString('pt-BR') : veiculo.dataInicio 
+    };
 
     const updates = {};
     updates[`${sourceList}/${veiculo.id}`] = null; 
@@ -666,6 +698,7 @@ function moveVehicle(sourceList, targetList, id) {
         });
 }
 
+// LÓGICA DE EXPIRAÇÃO: Adiciona o campo dataExpiracao (timestamp)
 function removeVehicle(sourceList, id) {
     const veiculo = emInspecao.find(v => v.id === id);
 
@@ -673,10 +706,16 @@ function removeVehicle(sourceList, id) {
 
     if (confirm("Confirmar a finalização da inspeção?")) {
         
+        // 5 minutos em milissegundos
+        const FIVE_MINUTES_MS = 5 * 60 * 1000; 
+        // Define o tempo de expiração para limpeza automática (Timestamp UNIX)
+        const dataExpiracaoTimestamp = Date.now() + FIVE_MINUTES_MS; 
+
         const historicoVeiculo = {
             ...veiculo,
             status: 'finalizado',
-            dataFim: new Date().toLocaleString('pt-BR') 
+            dataFim: new Date().toLocaleString('pt-BR'),
+            dataExpiracao: dataExpiracaoTimestamp // CAMPO USADO PARA EXCLUSÃO AUTOMÁTICA
         };
 
         const updates = {};
@@ -689,19 +728,6 @@ function removeVehicle(sourceList, id) {
                 speak(`Serviço de ${veiculo.servico} finalizado para o veículo placa ${placaFormatada}. Obrigado por aguardar.`);
 
                 alert('Inspeção Finalizada! Veículo movido para o Histórico.');
-                
-                // Agendamento da Exclusão do Histórico após 5 minutos
-                const FIVE_MINUTES = 5 * 60 * 1000;
-                
-                setTimeout(() => {
-                    database.ref(`historico/${veiculo.id}`).remove()
-                        .then(() => {
-                            console.log(`[Timer] Veículo ${veiculo.placa} excluído do Histórico após 5 minutos.`);
-                        })
-                        .catch(error => {
-                            console.error(`[Timer] Erro ao excluir veículo ${veiculo.placa}:`, error);
-                        });
-                }, FIVE_MINUTES);
             })
             .catch(error => {
                 console.error("Erro ao finalizar veículo no Firebase:", error);
@@ -718,23 +744,23 @@ function removeVehicle(sourceList, id) {
 document.addEventListener('DOMContentLoaded', () => {
     
     // Força o logout no carregamento da página para garantir a tela de login.
-    auth.signOut();
-    
-    // 1. Inicializa o observador de estado de autenticação
-    auth.onAuthStateChanged(user => {
-        if (user) {
-            // Logado
-            setupRealtimeSync();
-            toggleMainNav(true);
-            displayUserEmail(user.email); 
-            setActivePage('page-recepcao'); 
-        } else {
-            // Deslogado
-            removeRealtimeSync();
-            toggleMainNav(false);
-            displayUserEmail('E-mail'); 
-            setActivePage('page-login');
-        }
+    auth.signOut().then(() => {
+        // 1. Inicializa o observador de estado de autenticação
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                // Logado
+                setupRealtimeSync();
+                toggleMainNav(true);
+                displayUserEmail(user.email); 
+                setActivePage('page-recepcao'); 
+            } else {
+                // Deslogado
+                removeRealtimeSync();
+                toggleMainNav(false);
+                displayUserEmail('E-mail'); 
+                setActivePage('page-login');
+            }
+        });
     });
 
     // 2. Configura os formulários de autenticação
@@ -745,9 +771,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // 3. Configura os links de navegação
-    document.querySelectorAll('.nav-item:not(#nav-logout), .switch-auth-page').forEach(item => {
+    document.querySelectorAll('.nav-item, .switch-auth-page').forEach(item => {
         item.addEventListener('click', (e) => {
             e.preventDefault();
+            
+            if (e.currentTarget.id === 'nav-logout') return;
+            
             const page = e.currentTarget.getAttribute('data-page');
             
             if (e.currentTarget.classList.contains('switch-auth-page')) {
@@ -755,8 +784,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 displayAuthMessage('page-cadastro', '');
                 displayAuthMessage('page-recuperar', '');
             }
-
-            if (e.currentTarget.id === 'nav-logout') return;
             
             setActivePage(`page-${page}`);
         });
