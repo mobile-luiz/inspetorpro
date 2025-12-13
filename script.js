@@ -1,4 +1,4 @@
-// script.js - Versão COMPLETA E CORRIGIDA (com Limpeza de Histórico Automática e correção de bug no setActivePage)
+// script.js - Versão COMPLETA E OTIMIZADA (Tráfego de Download do Firebase Reduzido)
 
 // ESTRUTURA FIREBASE (Credenciais fornecidas pelo usuário)
 // ---------------------------------------------
@@ -25,11 +25,13 @@ let filaDeEspera = [];
 let emInspecao = [];
 let historicoFinalizado = []; // Para o Painel TV
 let listaUsuarios = []; 
-let realtimeSyncListener = null; 
+
+// NOVO: Mapa para armazenar os listeners e desativá-los corretamente, reduzindo o tráfego.
+let realtimeListeners = {}; 
 
 
 // ---------------------------------------------
-// Funções de Controle de Tela e UI (COM CORREÇÃO DE BUG)
+// Funções de Controle de Tela e UI 
 // ---------------------------------------------
 
 function setActivePage(pageId) {
@@ -44,7 +46,7 @@ function setActivePage(pageId) {
     // Trata páginas de autenticação
     if (pageId.includes('login') || pageId.includes('cadastro') || pageId.includes('recuperar')) {
         const authPage = document.getElementById(pageId);
-        if (authPage) { // <--- CORREÇÃO DE BUG: Garante que o elemento existe
+        if (authPage) { 
             authPage.classList.remove('hidden');
         } else {
              console.error(`Erro: Elemento de autenticação ${pageId} não encontrado no DOM.`);
@@ -57,11 +59,11 @@ function setActivePage(pageId) {
     
     if (!mainPage) {
         console.error(`Erro: Elemento da página ${pageId} não encontrado no DOM. Verifique seu HTML.`);
-        return; // Interrompe se a página não existir (PREVINE ERRO NA LINHA 50/54)
+        return; 
     }
 
     // Mostra a página
-    mainPage.classList.remove('hidden'); // LINHA QUE CAUSAVA O ERRO, AGORA PROTEGIDA
+    mainPage.classList.remove('hidden'); 
     
     // Ativa o item de navegação correspondente
     const pageKey = pageId.replace('page-', '');
@@ -221,121 +223,131 @@ function handleLogout() {
         });
 }
 
+
 // ---------------------------------------------
-// Sincronização em Tempo Real (on('value'))
+// Sincronização em Tempo Real (NOVA LÓGICA OTIMIZADA)
 // ---------------------------------------------
 
-function setupRealtimeSync() {
-    if (realtimeSyncListener) {
-        database.ref('/').off('value', realtimeSyncListener);
-    }
+/**
+ * Função auxiliar para re-renderizar a página ativa.
+ */
+function renderActivePage() {
+    const activePage = document.querySelector('.content-container:not(.hidden)');
+    if (!activePage) return; 
     
-    const listenerCallback = (snapshot) => { 
-        const data = snapshot.val();
-        
-        // 1. Limpa e re-popula as listas globais
-        filaDeEspera = [];
-        emInspecao = [];
-        historicoFinalizado = [];
-        listaUsuarios = [];
-        
-        if (data) {
-            
-            // Processa filaDeEspera
-            if (data.filaDeEspera) {
-                Object.keys(data.filaDeEspera).forEach(key => {
-                    const veiculo = data.filaDeEspera[key];
-                    veiculo.id = key; 
-                    filaDeEspera.push(veiculo); 
-                });
-            }
-            
-            // Processa emInspecao
-            if (data.emInspecao) {
-                Object.keys(data.emInspecao).forEach(key => {
-                    const veiculo = data.emInspecao[key];
-                    veiculo.id = key; 
-                    emInspecao.push(veiculo);
-                });
-            }
+    const activePageId = activePage.id;
+    
+    if (activePageId === 'page-tecnico') {
+        renderTechDashboard();
+    } else if (activePageId === 'page-paineltv') {
+        renderPainelTV();
+    } else if (activePageId === 'page-usuarios') { 
+        renderUsers(); 
+    }
+}
 
-            // Processa historico
-            if (data.historico) {
-                Object.keys(data.historico).forEach(key => {
-                    const veiculo = data.historico[key];
-                    veiculo.id = key; 
-                    historicoFinalizado.push(veiculo);
-                });
-            }
-            
-            // Processa listaUsuarios
-            if (data.usuarios) { 
-                Object.keys(data.usuarios).forEach(uid => {
-                    const user = data.usuarios[uid];
-                    user.uid = uid; 
-                    listaUsuarios.push(user);
-                });
-            }
-        }
-        
-        // 2. ORDENAÇÕES (Garante que o dado mais novo esteja no topo)
+
+/**
+ * Configura os listeners de sincronização em tempo real para CADA nó.
+ * Isso reduz drasticamente o tráfego de download.
+ */
+function setupRealtimeSync() {
+    // 1. Limpa listeners antigos para evitar duplicação.
+    removeRealtimeSync(); 
+    
+    // --- LISTENER 1: FILA DE ESPERA ---
+    realtimeListeners.fila = database.ref('filaDeEspera').on('value', snapshot => {
+        filaDeEspera = [];
+        snapshot.forEach(childSnapshot => {
+            const veiculo = childSnapshot.val();
+            veiculo.id = childSnapshot.key;
+            filaDeEspera.push(veiculo); 
+        });
         filaDeEspera.sort((a, b) => b.id.localeCompare(a.id)); 
-        emInspecao.sort((a, b) => b.id.localeCompare(a.id));
+        renderActivePage(); // Renderiza apenas quando a Fila de Espera muda
+    }, error => {
+        console.error("Erro na sincronização de filaDeEspera:", error);
+    });
+
+    // --- LISTENER 2: EM INSPEÇÃO ---
+    realtimeListeners.inspecao = database.ref('emInspecao').on('value', snapshot => {
+        emInspecao = [];
+        snapshot.forEach(childSnapshot => {
+            const veiculo = childSnapshot.val();
+            veiculo.id = childSnapshot.key;
+            emInspecao.push(veiculo); 
+        });
+        emInspecao.sort((a, b) => b.id.localeCompare(a.id)); 
+        renderActivePage(); // Renderiza apenas quando Em Inspeção muda
+    }, error => {
+        console.error("Erro na sincronização de emInspecao:", error);
+    });
+
+    // --- LISTENER 3: HISTÓRICO ---
+    realtimeListeners.historico = database.ref('historico').on('value', snapshot => {
+        historicoFinalizado = [];
+        snapshot.forEach(childSnapshot => {
+            const veiculo = childSnapshot.val();
+            veiculo.id = childSnapshot.key; 
+            historicoFinalizado.push(veiculo);
+        });
         
+        // Ordenação do histórico (Mais recente primeiro)
         historicoFinalizado.sort((a, b) => {
              const timeA = a.dataFim ? new Date(a.dataFim.replace(/(\d{2})\/(\d{2})\/(\d{4}),\s*(\d{2}:\d{2}:\d{2})/, '$3/$2/$1 $4')).getTime() : 0;
              const timeB = b.dataFim ? new Date(b.dataFim.replace(/(\d{2})\/(\d{2})\/(\d{4}),\s*(\d{2}:\d{2}:\d{2})/, '$3/$2/$1 $4')).getTime() : 0;
              return timeB - timeA; 
         });
         
+        // CHAMADA ESSENCIAL: Limpeza de Histórico (só precisa ser chamada na atualização do histórico)
+        runHistoryCleanup(); 
+        renderActivePage(); // Renderiza apenas quando o Histórico muda
+    }, error => {
+        console.error("Erro na sincronização de historico:", error);
+    });
+    
+    // --- LISTENER 4: USUÁRIOS ---
+    realtimeListeners.usuarios = database.ref('usuarios').on('value', snapshot => {
+        listaUsuarios = [];
+        snapshot.forEach(childSnapshot => {
+            const user = childSnapshot.val();
+            user.uid = childSnapshot.key; 
+            listaUsuarios.push(user);
+        });
         listaUsuarios.sort((a, b) => a.email.localeCompare(b.email)); 
 
-        
-        // 3. LÓGICA DE LIMPEZA DE HISTÓRICO EXPIRADO - CHAMADA ESSENCIAL
-        runHistoryCleanup();
-
-
-        // 4. LÓGICA DE VERIFICAÇÃO DE AUTORIZAÇÃO APÓS EXCLUSÃO DO DB
+        // LÓGICA DE VERIFICAÇÃO DE AUTORIZAÇÃO (depende da lista de usuários)
         const currentUser = auth.currentUser;
         if (currentUser) {
             const userInDB = listaUsuarios.find(u => u.uid === currentUser.uid);
             
             if (!userInDB) {
                 console.warn(`Acesso negado: Usuário ${currentUser.email} sem registro no DB. Forçando logout.`);
-                
                 alert("Sua conta foi desativada ou removida pelo Administrador. Você será desconectado.");
-                
                 auth.signOut();
                 return; 
             }
         }
         
-        // 5. Renderiza a página ativa
-        const activePage = document.querySelector('.content-container:not(.hidden)');
-        if (!activePage) return; 
-        
-        const activePageId = activePage.id;
-        
-        if (activePageId === 'page-tecnico') {
-            renderTechDashboard();
-        } else if (activePageId === 'page-paineltv') {
-            renderPainelTV();
-        } else if (activePageId === 'page-usuarios') { 
-            renderUsers(); 
-        }
-    };
-    
-    realtimeSyncListener = listenerCallback;
-    database.ref('/').on('value', realtimeSyncListener, error => {
-        console.error("Erro na sincronização em tempo real do Firebase:", error);
+        renderActivePage(); // Renderiza apenas quando a lista de Usuários muda
+    }, error => {
+         console.error("Erro na sincronização de usuários:", error);
     });
 }
 
+/**
+ * Remove todos os listeners em tempo real para evitar vazamento de memória e tráfego.
+ */
 function removeRealtimeSync() {
-    if (realtimeSyncListener) {
-        database.ref('/').off('value', realtimeSyncListener);
-        realtimeSyncListener = null;
-    }
+    // Desativa cada listener especificamente
+    if (realtimeListeners.fila) database.ref('filaDeEspera').off('value', realtimeListeners.fila);
+    if (realtimeListeners.inspecao) database.ref('emInspecao').off('value', realtimeListeners.inspecao);
+    if (realtimeListeners.historico) database.ref('historico').off('value', realtimeListeners.historico);
+    if (realtimeListeners.usuarios) database.ref('usuarios').off('value', realtimeListeners.usuarios);
+    
+    realtimeListeners = {}; // Limpa o mapa
+    
+    // Limpa os arrays locais
     filaDeEspera = [];
     emInspecao = [];
     historicoFinalizado = [];
@@ -350,35 +362,48 @@ function removeRealtimeSync() {
 /**
  * Verifica o array global historicoFinalizado e remove do Firebase 
  * todos os veículos onde o timestamp 'dataExpiracao' já passou.
- * É chamada em cada sincronização (login ou atualização de dados).
+ * É chamada APENAS quando o nó 'historico' é atualizado.
  */
 function runHistoryCleanup() {
     const now = Date.now();
     const updates = {};
-    let itemsRemovedCount = 0;
-
+    const idsToRemoveLocally = []; 
+    
     historicoFinalizado.forEach(veiculo => {
         // Verifica se o campo dataExpiracao existe e se o tempo atual 
         // é maior ou igual ao tempo de expiração agendado (5 minutos).
         if (veiculo.dataExpiracao && veiculo.dataExpiracao <= now) {
             // Marca o item para exclusão (seta para null)
             updates[`historico/${veiculo.id}`] = null;
-            itemsRemovedCount++;
+            idsToRemoveLocally.push(veiculo.id); 
         }
     });
 
-    if (itemsRemovedCount > 0) {
-        console.log(`[CLEANUP] Iniciando limpeza: ${itemsRemovedCount} itens expirados no histórico.`);
+    if (idsToRemoveLocally.length > 0) {
+        console.log(`[CLEANUP] Iniciando limpeza: ${idsToRemoveLocally.length} itens expirados no histórico.`);
+        
         // Executa a exclusão de todos os itens em um único batch
         database.ref().update(updates)
             .then(() => {
-                console.log("[CLEANUP] Limpeza do histórico concluída com sucesso.");
+                console.log("[CLEANUP] Limpeza do histórico concluída com sucesso. Atualizando lista local...");
+                
+                // ATUALIZAÇÃO LOCAL IMEDIATA: Filtra o array local.
+                historicoFinalizado = historicoFinalizado.filter(veiculo => 
+                    !idsToRemoveLocally.includes(veiculo.id)
+                );
+                
+                // Re-renderiza o Painel TV (garantindo que o histórico desapareça instantaneamente)
+                const activePage = document.querySelector('.content-container:not(.hidden)');
+                if (activePage && activePage.id === 'page-paineltv') {
+                    renderPainelTV();
+                }
+                
             })
             .catch(error => {
                 console.error("[CLEANUP] Erro durante a limpeza do histórico:", error);
             });
     } else {
-         console.log("[CLEANUP] Nenhum item expirado encontrado no histórico.");
+         // console.log("[CLEANUP] Nenhum item expirado encontrado no histórico."); // Removido para reduzir logs
     }
 }
 
@@ -617,16 +642,16 @@ function renderPainelTV() {
         });
     }
 
-    // 3. Renderiza Histórico/Finalizados (limita a exibição dos 5 mais recentes)
+    // 3. Renderiza Histórico/Finalizados (AGORA EXIBE TODOS OS ITENS)
     if (historicoFinalizado.length === 0) {
         if(tvFinalizadoBody) tvFinalizadoBody.innerHTML = '<p class="empty-message-tv">Nenhum serviço finalizado recentemente.</p>';
     } else {
-        // Usa slice(0, 5) após a ordenação (no setupRealtimeSync) para pegar os 5 mais novos
-        historicoFinalizado.slice(0, 5).forEach((veiculo) => { 
+        // Itera sobre todos os itens, sem limitação
+        historicoFinalizado.forEach((veiculo) => { 
             if(tvFinalizadoBody) tvFinalizadoBody.appendChild(createTVItem(veiculo, true)); 
         });
     }
-}
+} 
 
 
 // Funções utilitárias (Voz, Capitalização e Toast)
@@ -749,7 +774,7 @@ document.addEventListener('DOMContentLoaded', () => {
         auth.onAuthStateChanged(user => {
             if (user) {
                 // Logado
-                setupRealtimeSync();
+                setupRealtimeSync(); // AGORA SÓ BAIXA O NECESSÁRIO
                 toggleMainNav(true);
                 displayUserEmail(user.email); 
                 setActivePage('page-recepcao'); 
