@@ -1,4 +1,4 @@
-// script.js - Versão CORRIGIDA (Otimizada e com Autenticação de Persistência Funcional no Celular)
+// script.js - Versão COMPLETA E OTIMIZADA (Tráfego de Download do Firebase Reduzido)
 
 // ESTRUTURA FIREBASE (Credenciais fornecidas pelo usuário)
 // ---------------------------------------------
@@ -124,10 +124,10 @@ function handleLogin(e) {
     const password = document.getElementById('login-password').value;
     displayAuthMessage('page-login', 'Entrando...');
 
-    auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL) 
-        .then(() => {
-             return auth.signInWithEmailAndPassword(email, password);
-        })
+    // CORRIGIDO: Removemos a persistência explícita (LOCAL) para corrigir 
+    // o problema de login em dispositivos móveis e evitar conflito com 
+    // o logout forçado na inicialização.
+    auth.signInWithEmailAndPassword(email, password)
         .then(() => {
             displayAuthMessage('page-login', ''); 
         })
@@ -764,23 +764,25 @@ function removeVehicle(sourceList, id) {
 
 document.addEventListener('DOMContentLoaded', () => {
     
-    // 1. Inicializa o observador de estado de autenticação
-    // CORREÇÃO: Removido auth.signOut().then(() => {...}) para garantir que a persistência LOCAL funcione.
-    // Isso resolve o problema de o usuário ser desconectado a cada recarregamento, especialmente no celular.
-    auth.onAuthStateChanged(user => {
-        if (user) {
-            // Logado
-            setupRealtimeSync(); // AGORA SÓ BAIXA O NECESSÁRIO
-            toggleMainNav(true);
-            displayUserEmail(user.email); 
-            setActivePage('page-recepcao'); 
-        } else {
-            // Deslogado
-            removeRealtimeSync();
-            toggleMainNav(false);
-            displayUserEmail('E-mail'); 
-            setActivePage('page-login');
-        }
+    // FORÇA LOGOUT: Garante que, ao recarregar a página ou abrir uma nova sessão, 
+    // o usuário volte para a tela de login (Atende ao seu primeiro requisito).
+    auth.signOut().then(() => {
+        // 1. Inicializa o observador de estado de autenticação
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                // Logado
+                setupRealtimeSync(); 
+                toggleMainNav(true);
+                displayUserEmail(user.email); 
+                setActivePage('page-recepcao'); 
+            } else {
+                // Deslogado
+                removeRealtimeSync();
+                toggleMainNav(false);
+                displayUserEmail('E-mail'); 
+                setActivePage('page-login');
+            }
+        });
     });
 
     // 2. Configura os formulários de autenticação
