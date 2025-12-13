@@ -762,28 +762,41 @@ function removeVehicle(sourceList, id) {
 // Inicialização
 // ----------------------------------------------------
 
+// ----------------------------------------------------
+// Inicialização
+// ----------------------------------------------------
+
 document.addEventListener('DOMContentLoaded', () => {
     
-    // FORÇA LOGOUT: Garante que, ao recarregar a página ou abrir uma nova sessão, 
-    // o usuário volte para a tela de login (Atende ao seu primeiro requisito).
-    auth.signOut().then(() => {
-        // 1. Inicializa o observador de estado de autenticação
+    // REQUISITO DO USUÁRIO: Força o logout ao recarregar a página para garantir a tela de login.
+    // Executamos o signOut imediatamente para anular qualquer sessão anterior.
+    // O .catch() é importante para garantir que a aplicação não pare mesmo que haja falha no signOut.
+    auth.signOut().catch(error => {
+         console.warn("Aviso: Falha ao forçar o logout inicial, mas continuando a inicialização.", error);
+    });
+
+    // 1. Inicializa o observador de estado de autenticação
+    // Usamos setTimeout(..., 0) para agendar a execução do onAuthStateChanged.
+    // Isso garante que ele inicie APÓS o comando signOut() ter tido a chance de ser processado,
+    // corrigindo problemas de timing em navegadores móveis lentos ou agressivos.
+    setTimeout(() => {
         auth.onAuthStateChanged(user => {
             if (user) {
-                // Logado
+                // Logado (isso só acontece após um login bem-sucedido)
                 setupRealtimeSync(); 
                 toggleMainNav(true);
                 displayUserEmail(user.email); 
                 setActivePage('page-recepcao'); 
             } else {
-                // Deslogado
+                // Deslogado (estado normal após o signOut forçado ou na primeira visita)
                 removeRealtimeSync();
                 toggleMainNav(false);
                 displayUserEmail('E-mail'); 
                 setActivePage('page-login');
             }
         });
-    });
+    }, 0); // 0ms de delay (Agendamento para o próximo ciclo de eventos)
+
 
     // 2. Configura os formulários de autenticação
     document.getElementById('login-form')?.addEventListener('submit', handleLogin);
