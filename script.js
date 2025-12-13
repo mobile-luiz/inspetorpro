@@ -4,13 +4,9 @@
 // ---------------------------------------------
 const firebaseConfig = {
     apiKey: "AIzaSyA-V0sQPZbJfXMFlUjjtniSHSy37C7k4zs",
-    authDomain: "inspetorpro-6d9a7.firebaseapp.com",
+
     databaseURL: "https://inspetorpro-6d9a7-default-rtdb.firebaseio.com",
-    projectId: "inspetorpro-6d9a7",
-    storageBucket: "inspetorpro-6d9a7.firebasestorage.app",
-    messagingSenderId: "568938045626",
-    appId: "1:568938045626:web:c3042e646d74ad0ec8a283",
-    measurementId: "G-LT8ZSZSWL0"
+ 
 };
 
 // Inicializa o Firebase
