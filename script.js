@@ -1,4 +1,4 @@
-// script.js - Versão COMPLETA E OTIMIZADA (Tráfego de Download do Firebase Reduzido)
+// script.js - Versão CORRIGIDA (Otimizada e com Autenticação de Persistência Funcional no Celular)
 
 // ESTRUTURA FIREBASE (Credenciais fornecidas pelo usuário)
 // ---------------------------------------------
@@ -764,24 +764,23 @@ function removeVehicle(sourceList, id) {
 
 document.addEventListener('DOMContentLoaded', () => {
     
-    // Força o logout no carregamento da página para garantir a tela de login.
-    auth.signOut().then(() => {
-        // 1. Inicializa o observador de estado de autenticação
-        auth.onAuthStateChanged(user => {
-            if (user) {
-                // Logado
-                setupRealtimeSync(); // AGORA SÓ BAIXA O NECESSÁRIO
-                toggleMainNav(true);
-                displayUserEmail(user.email); 
-                setActivePage('page-recepcao'); 
-            } else {
-                // Deslogado
-                removeRealtimeSync();
-                toggleMainNav(false);
-                displayUserEmail('E-mail'); 
-                setActivePage('page-login');
-            }
-        });
+    // 1. Inicializa o observador de estado de autenticação
+    // CORREÇÃO: Removido auth.signOut().then(() => {...}) para garantir que a persistência LOCAL funcione.
+    // Isso resolve o problema de o usuário ser desconectado a cada recarregamento, especialmente no celular.
+    auth.onAuthStateChanged(user => {
+        if (user) {
+            // Logado
+            setupRealtimeSync(); // AGORA SÓ BAIXA O NECESSÁRIO
+            toggleMainNav(true);
+            displayUserEmail(user.email); 
+            setActivePage('page-recepcao'); 
+        } else {
+            // Deslogado
+            removeRealtimeSync();
+            toggleMainNav(false);
+            displayUserEmail('E-mail'); 
+            setActivePage('page-login');
+        }
     });
 
     // 2. Configura os formulários de autenticação
